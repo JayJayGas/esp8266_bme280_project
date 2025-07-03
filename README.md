@@ -33,5 +33,4 @@ The two .py python scripts use PahoMQTT to interact with the ESP8266
     ESP8266 with the e-Paper display for display.
 
 
-If you have any questions, feel free to ask. If you think the C++ is bad code, that's because it is.
-Most of the C++ is just bad C that is adapted for C++.
+If you have any questions, feel free to ask.
