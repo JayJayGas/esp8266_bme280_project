@@ -60,6 +60,7 @@
 #define TOPIC_IN ""        // topic for the message this unit will recieve from the broker.
 #define TEXT_SPACING 5     //text paragraph spacing as pixels.
 ///////////////////Proto////////////////////////////
+void* xmalloc(size_t size);
 int setup_wifi(void);
 int setup_mqtt(void);
 int mqtt_callback(char* topic, byte* payload, unsigned int length);
@@ -222,8 +223,7 @@ int mqtt_publish(const char* topic, const char* string) {
 int mqtt_callback(char* topic, byte* payload, unsigned int length) {
   //***STRING COLLECTION START****
   //collect data into a string
-  uint16_t new_length = length + 1;
-  char message[new_length];
+  char message[length];
   Serial.println("Data recieved");
   Serial.print(topic);
   Serial.print(",");
@@ -232,7 +232,7 @@ int mqtt_callback(char* topic, byte* payload, unsigned int length) {
   for (uint16_t i = 0; i < length; i++) {
     message[i] = (char)payload[i];
   }
-  message[new_length] = '\0';  //null terminate string
+  message[length] = '\0';  //null terminate string
   Serial.println(message);     //print string
   //***STRING COLLECTION END****
 
@@ -572,5 +572,11 @@ int print_screen_all() {
     }
   } while (display.nextPage());
   /****************SCREEN PRINTING END************/
+  //malloc free any function with ret_grid_box_size() or text_size()
+  //ret_grid_box_size() unnescarily uses malloc. Consider rewriting.
+  free(square_shape_align_grid);  //ret_grid_box_size()
+  free(data_array_size);  //text_size()
+  free(display_headings_size);  //text_size()
+  free(data_headings_size); //text_size()
   return 0;
 }
