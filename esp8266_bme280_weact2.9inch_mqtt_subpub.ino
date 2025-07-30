@@ -66,12 +66,13 @@ int setup_mqtt(void);
 int mqtt_callback(char* topic, byte* payload, unsigned int length);
 int mqtt_publish(const char* topic, const char* string);
 int esp_wifi_sleep(int sleep_time);
+int grid_size_init(void);
 int _small_text_init(void);
 int screen_setup(void);
 struct shape_size background_square(void);
 int print_screen_all();
 struct shape_size ret_grid_size(uint16_t grid_width, uint16_t grid_height);
-struct shape_size* ret_grid_box_size(struct shape_size grid);
+struct shape_size* ret_sub_grid_size(struct shape_size grid);
 struct shape_size background_square_coords(void);
 struct shape_size* text_size(const char* string_array[], uint16_t array_size);
 ///////////////////Init/////////////////////////////
@@ -110,12 +111,15 @@ const char* clientID = "";
 const int mqtt_port = 1883;
 //////////////GLOB DATA VAR/////////////////////////
 const char* data_array[NUMBER_OF_SENSORS*NUMBER_OF_DATA_POINTS_FROM_SENSORS+2]; // MQTT string stored here. See MQTT callback func.
+struct shape_size screen_grid_size;
+struct shape_size* screen_sub_grid_size = NULL;
 ///////////////////MAIN/////////////////////////////
 void setup(void) {
   //screen setup
   display.init(115200, true, 50, false);
   setup_wifi();
   setup_mqtt();
+  grid_size_init();
   screen_setup();
   display.hibernate();
   //Function called when MQTT message recieved
@@ -200,6 +204,17 @@ int mqtt_publish(const char* topic, const char* string) {
     Serial.print("Data sent: ");
     Serial.println(string);
   }
+  return 0;
+}
+
+/*****************************************************
+* @brief Initialise Screen grids for printing/text alignment
+* @note Returns a 4x4 grid in a 4x4 grid.
+* @return 0
+*****************************************************/
+int grid_size_init(void){
+  screen_grid_size = ret_grid_size(display.width(), display.height());
+  screen_sub_grid_size = ret_sub_grid_size(screen_grid_size); //malloc, should be freed later.
   return 0;
 }
 
@@ -392,7 +407,7 @@ struct shape_size ret_grid_size(uint16_t grid_width,uint16_t grid_height){
 * @brief Use the grid struct to make a struct array of grids.
 *
 * Will take the struct from ret_grid_size() (or a manual shape struct) 
-* and fsplit the shape into a grid.
+* and split the shape into a grid.
 * Useful for text alignment within the object you've got on a screen.
 * e.g. take your shape shape_size struct, and then use ret_grid_box_size()
 * to make a grid in the shape. You can then align text to the grid or other
@@ -406,7 +421,7 @@ struct shape_size ret_grid_size(uint16_t grid_width,uint16_t grid_height){
 * @param struct shape_size grid
 * @return struct shape_size[GRID_ARRAY_SIZE]
 *****************************************************/
-struct shape_size* ret_grid_box_size(struct shape_size shape) {
+struct shape_size* ret_sub_grid_size(struct shape_size shape) {
   struct shape_size* ret_grid_box = (shape_size*)malloc(GRID_ARRAY_SIZE * sizeof(shape_size));
   //generate grid in as array of struct
   for (uint16_t i = 0; i < GRID_ARRAY_SIZE; i++) {
@@ -453,18 +468,6 @@ struct shape_size* text_size(const char* string_array[], uint16_t array_size) {
 ////////////////////PRINT FUNCS////////////////////////
 
 /*****************************************************
-* @brief Return background square sizing as a shape_size struct
-* @return struct shape_size
-*****************************************************/
-struct shape_size background_square(void) {
-  //make a grid of squares 4x4
-  uint16_t grid_height = display.height();
-  uint16_t grid_width = display.width();
-  struct shape_size square = ret_grid_size(grid_width, grid_height);
-  return square;
-}
-
-/*****************************************************
 * @brief prints everything
 *
 * Will print everything to the E-paper screen using the dimensions
@@ -487,8 +490,6 @@ int print_screen_all() {
   display.setFullWindow();
   
   //structs for objects to get dimensional data for easy access
-  struct shape_size square_shape = background_square(); //2x2 background grid shape
-  struct shape_size* square_shape_align_grid = ret_grid_box_size(square_shape); //text alignment for 'square_shape'
   struct shape_size* display_headings_size = text_size(display_headings,
                                                       display_headings_array_size);
   struct shape_size* data_headings_size = text_size(data_headings,
@@ -513,7 +514,7 @@ int print_screen_all() {
     /**********SHAPES/DRAWINGS**************/
     //print background box/grid
     for (int i = 0; i < GRID_ARRAY_SIZE; i++) {
-      display.drawRoundRect(square_shape.x[i], square_shape.y[i], square_shape.width, square_shape.height, 10, GxEPD_BLACK);  //draw the square from the background() func
+      display.drawRoundRect(screen_grid_size.x[i], screen_grid_size.y[i], screen_grid_size.width, screen_grid_size.height, 10, GxEPD_BLACK);  //draw the square from the background() func
     }
     /********SHAPES/DRAWINGS END**********/
     /************HEADING TEXT************/
@@ -522,8 +523,8 @@ int print_screen_all() {
     //e.g. i=0 is the top left box of the screen.
     //see background_square() func for details.
     for (int i = 0; i < GRID_ARRAY_SIZE; i++) {
-      x = square_shape_align_grid[i].x[0] + TEXT_SPACING;
-      y = square_shape_align_grid[i].y[0] + (TEXT_SPACING*2) + (display_headings_size[i].height/2);
+      x = screen_sub_grid_size[i].x[0] + TEXT_SPACING;
+      y = screen_sub_grid_size[i].y[0] + (TEXT_SPACING*2) + (display_headings_size[i].height/2);
       y_prev = y; //save y
       x_prev = x; //save x
       display.setCursor(x, y);
@@ -536,7 +537,7 @@ int print_screen_all() {
       //of the box[i]. Both the TEXT_data_display_headings and data_array
       //are written here. So you get mini-titles with the data as well.
       for (int j = 0; j < data_headings_array_size; j++) {
-        x = square_shape_align_grid[i].x[0] + TEXT_SPACING; //reset x after each loop
+        x = screen_sub_grid_size[i].x[0] + TEXT_SPACING; //reset x after each loop
         if (i==(GRID_ARRAY_SIZE-1)){                      //This is for the last quadrant (time). No mini-title, only data.
           //data text (date data)
           y = y_prev + display_headings_size[i].height + (TEXT_SPACING*1.5);
@@ -572,11 +573,15 @@ int print_screen_all() {
     }
   } while (display.nextPage());
   /****************SCREEN PRINTING END************/
-  //malloc free any function with ret_grid_box_size() or text_size()
-  //ret_grid_box_size() unnescarily uses malloc. Consider rewriting.
-  free(square_shape_align_grid);  //ret_grid_box_size()
+
+  /****************MALLOC FREE************/
+  //NOT FREED
+  //free(screen_sub_grid_size);  //ret_grid_box_size() - not freed, global.
+  //FREED
   free(data_array_size);  //text_size()
   free(display_headings_size);  //text_size()
   free(data_headings_size); //text_size()
+  /**************************************/
+  
   return 0;
 }
