@@ -1,6 +1,5 @@
 This project takes 4 ESP8266 Node MCU boards and turns them into a temperature monitoring system.
 
-
 In this project you have:
   - 3 Node MCU boards with BME280 temperature sensors.
   - 1 Node MCU board with a WeACT 2.9" or 4.2" e-Paper display to display the temperatures.
